@@ -21,26 +21,7 @@ Hệ thống cho phép thu thập tự động các thông số nhiệt độ, �
  3. Kiến Trúc Hệ Thống & Sơ Đồ Khối
 
 Sơ Đồ Luồng Xử Lý FreeRTOS
-+----------------------+      +----------------------+
-|     Task DHT11       |      |     Task HC-SR04     |
-| (Đọc Temp & Humid)   |      |   (Đo Khoảng Cách)   |
-|   Priority: High     |      |   Priority: Medium   |
-+----------+-----------+      +----------+-----------+
-           |                             |
-           +--------------+--------------+
-                          |
-                          v (Data Struct Pointer)
-               +--------------------+
-               | FreeRTOS Queue     |
-               +---------+----------+
-                         |
-                         v
-               +--------------------+
-               |      Task LCD      |
-               | (Hiển Thị 2004I2C) |
-               |   Priority: Low    |
-               +--------------------+
-
+Task DHT11 (Priority: High) & Task HC-SR04 (Priority: Medium) ➔ FreeRTOS Queue ➔ Task LCD (Priority: Low)
 
 <img width="1920" height="2560" alt="8600eeb315d69588ccc73" src="https://github.com/user-attachments/assets/3e84a61e-545f-4c06-9e08-e0ce850e8695" />
 <img width="1920" height="2560" alt="71d7866a7d0ffd51a41e2" src="https://github.com/user-attachments/assets/f7125d75-7876-4ea6-9bd1-30c96ff23281" />
