@@ -56,13 +56,12 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart2;
-
 osThreadId Task01Handle;
 osThreadId Task02Handle;
 osThreadId Task03Handle;
 osMessageQId myQueue01Handle;
 /* USER CODE BEGIN PV */
-
+osMutexId uartMutexHandle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,18 +91,19 @@ typedef struct{
 char buff[128];
 void mPrint(const char *str, ...)
 {
+	osMutexWait(uartMutexHandle, osWaitForever);
 	va_list ptr;
 	va_start(ptr, str);
 	vsniprintf(buff, sizeof(buff), str, ptr);
 	va_end(ptr);
-	HAL_UART_Transmit(&huart2, (uint8_t *)buff, strlen(buff), 100);
+	HAL_UART_Transmit(&huart2, (uint8_t*) buff, strlen(buff), 100);
 	memset(buff, 0, sizeof(buff));
+	osMutexRelease(uartMutexHandle);
 }
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-float test;
 /* USER CODE END 0 */
 
 /**
@@ -146,6 +146,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
+  osMutexDef(uartMutex);
+  uartMutexHandle = osMutexCreate(osMutex(uartMutex));
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -158,7 +160,7 @@ int main(void)
 
   /* Create the queue(s) */
   /* definition and creation of myQueue01 */
-  osMessageQDef(myQueue01, 16, uint32_t);
+  osMessageQDef(myQueue01, 16, SensorMessage_t);
   myQueue01Handle = osMessageCreate(osMessageQ(myQueue01), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -167,13 +169,14 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of Task01 */
-  osThreadDef(Task01, StartTask_DHT11, 3, 0, 128);
-  Task01Handle = osThreadCreate(osThread(Task01), NULL);
 
   /* definition and creation of Task02 */
   osThreadDef(Task02, StartTask_HSCR05, 2, 0, 128);
   Task02Handle = osThreadCreate(osThread(Task02), NULL);
 
+  /* definition and creation of Task01 */
+  osThreadDef(Task01, StartTask_DHT11, 3, 0, 128);
+  Task01Handle = osThreadCreate(osThread(Task01), NULL);
   /* definition and creation of Task03 */
   osThreadDef(Task03, StartTask_LCD, 1, 0, 256);
   Task03Handle = osThreadCreate(osThread(Task03), NULL);
@@ -448,18 +451,18 @@ void StartTask_DHT11(void const * argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-	static SensorMessage_t msg;
-	msg.type = Data_DHT11;
+	static SensorMessage_t msg_DHT;
+	msg_DHT.type = Data_DHT11;
   for(;;)
   {
 	TemRH_t data = DHT11_Handle();
 	mPrint("DHT11 is running ... \n");
-	msg.temperature = data.Tem;
+	msg_DHT.temperature = data.Tem;
 	test_t = data.Tem;
-	msg.humidity    = data.RH;
+	msg_DHT.humidity    = data.RH;
 	test_RH = data.RH;
-	osMessagePut(myQueue01Handle, (uint32_t)&msg, osWaitForever);
-    osDelay(1000);
+	osMessagePut(myQueue01Handle,(uint32_t)&msg_DHT, 100);
+    osDelay(2000);
   }
   /* USER CODE END 5 */
 }
@@ -477,23 +480,23 @@ void StartTask_HSCR05(void const * argument)
 {
   /* USER CODE BEGIN StartTask_HSCR05 */
   /* Infinite loop */
-  static SensorMessage_t msg;
-  msg.type = Data_HSCR05;
+  static SensorMessage_t msg_HSCR;
+  msg_HSCR.type = Data_HSCR05;
   for(;;)
   {
-	msg.distance = Read_HSCR05();
+	msg_HSCR.distance = Read_HSCR05();
 	mPrint("HSCR05 is running ... \n");
-	test = msg.distance;
-	if(msg.distance >=2 && msg.distance <=250)
+	test = msg_HSCR.distance;
+	if(msg_HSCR.distance >=2 && msg_HSCR.distance <=450)
 	{
-		osMessagePut(myQueue01Handle, (uint32_t)&msg, osWaitForever);
+		osMessagePut(myQueue01Handle,(uint32_t)&msg_HSCR, 100);
 	}else
 	{
-		msg.distance = (float)-1;
-		osMessagePut(myQueue01Handle, (uint32_t)&msg, osWaitForever);
+		msg_HSCR.distance = (float)-1;
+		osMessagePut(myQueue01Handle,(uint32_t)&msg_HSCR, 100);
 	}
 
-    osDelay(500);
+    osDelay(1000);
   }
   /* USER CODE END StartTask_HSCR05 */
 }
@@ -510,7 +513,7 @@ void StartTask_LCD(void const * argument)
   /* USER CODE BEGIN StartTask_LCD */
   /* Infinite loop */
   osEvent Data_Sensor;
-  char LCD_buff[30];
+  char LCD_buff[20];
   LCD_Init();
   mPrint("LCD Init Done \n");
   for(;;)
